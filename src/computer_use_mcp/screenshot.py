@@ -119,49 +119,46 @@ class ScreenshotManager:
             # Create temp directory
             temp_dir = Path(tempfile.mkdtemp())
             
+            # Save screenshot and get filepath
+            filepath, _ = save_image_to_downloads(
+                screenshot, prefix="screenshot", directory=temp_dir
+            )
+
+            # Compress the image to reduce size
+            compressed_path = compress_image(filepath)
+            
+            # Copy compressed image to final location before cleanup
+            if save_to_downloads:
+                downloads_dir = self.get_downloads_dir()
+                final_path = downloads_dir / Path(compressed_path).name
+                shutil.copy(compressed_path, final_path)
+                image = Image(str(final_path))
+                log(f"Saved compressed screenshot to downloads: {final_path}")
+            else:
+                # Copy to a more permanent temp location to avoid cleanup issues
+                persistent_temp = tempfile.NamedTemporaryFile(suffix='.png', delete=False)
+                persistent_temp.close()
+                shutil.copy(compressed_path, persistent_temp.name)
+                image = Image(persistent_temp.name)
+                # Track for cleanup later
+                _temp_files_to_cleanup.append(persistent_temp.name)
+
+            # Clean up temp directory after copying files
             try:
-                # Save screenshot and get filepath
-                filepath, _ = save_image_to_downloads(
-                    screenshot, prefix="screenshot", directory=temp_dir
-                )
+                shutil.rmtree(temp_dir)
+                log(f"Cleaned up temp directory: {temp_dir}")
+            except Exception as e:
+                log(f"Could not clean up temp directory {temp_dir}: {e}")
 
-                # Compress the image to reduce size
-                compressed_path = compress_image(filepath)
-                
-                # Copy compressed image to downloads before creating Image object
-                if save_to_downloads:
-                    downloads_dir = self.get_downloads_dir()
-                    final_path = downloads_dir / Path(compressed_path).name
-                    shutil.copy(compressed_path, final_path)
-                    image = Image(str(final_path))
-                    log(f"Saved compressed screenshot to downloads: {final_path}")
-                else:
-                    # Copy to a more permanent temp location to avoid cleanup issues
-                    import tempfile
-                    persistent_temp = tempfile.NamedTemporaryFile(suffix='.png', delete=False)
-                    persistent_temp.close()
-                    shutil.copy(compressed_path, persistent_temp.name)
-                    image = Image(persistent_temp.name)
-                    # Track for cleanup later
-                    _temp_files_to_cleanup.append(persistent_temp.name)
+            if not with_ocr_text_and_coords:
+                return image  # MCP Image object
 
-                if not with_ocr_text_and_coords:
-                    return image  # MCP Image object
+            # Process OCR
+            ocr_results = self._process_ocr(
+                image.path, window, scale_percent_for_ocr
+            )
 
-                # Process OCR
-                ocr_results = self._process_ocr(
-                    image.path, window, scale_percent_for_ocr
-                )
-
-                return [image, *ocr_results]
-                
-            finally:
-                # Clean up temp directory
-                try:
-                    shutil.rmtree(temp_dir)
-                    log(f"Cleaned up temp directory: {temp_dir}")
-                except Exception as e:
-                    log(f"Could not clean up temp directory {temp_dir}: {e}")
+            return [image, *ocr_results]
 
         except Exception as e:
             log(f"Error in screenshot processing: {str(e)}")

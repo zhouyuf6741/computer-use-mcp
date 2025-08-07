@@ -1,9 +1,0 @@
-{
-  "mcpServers": {
-    "computer-use-mcp": {
-      "command": "python3",
-      "args": ["-m", "computer_use_mcp"],
-      "cwd": "/Users/yufengzhou/computer-use-mcp"
-    }
-  }
-}

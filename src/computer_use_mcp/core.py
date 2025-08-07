@@ -94,7 +94,7 @@ def get_mouse_position() -> Dict[str, Any]:
 
 @mcp.tool()
 def take_screenshot(
-    title_pattern: str = None,
+    title_pattern: str | None = None,
     use_regex: bool = False,
     threshold: int = 60,
     with_ocr_text_and_coords: bool = False,

@@ -67,7 +67,6 @@ def main():
         # Call the tool using the call_tool method
         import asyncio
         result = asyncio.run(mcp.call_tool("take_screenshot", {
-            "mode": args.mode,
             "title_pattern": args.title,
             "use_regex": args.regex,
             "save_to_downloads": not args.no_save
