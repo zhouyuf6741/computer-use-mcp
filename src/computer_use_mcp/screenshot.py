@@ -5,6 +5,8 @@ Screenshot and OCR functionality for Computer Control MCP
 
 import shutil
 import tempfile
+import atexit
+import os
 from pathlib import Path
 from typing import Any, List, Tuple
 
@@ -15,6 +17,22 @@ from rapidocr_onnxruntime import RapidOCR
 
 from mcp.server.fastmcp import Image
 from .utils import log, save_image_to_downloads, compress_image
+
+# Keep track of temporary files for cleanup
+_temp_files_to_cleanup = []
+
+def _cleanup_temp_files():
+    """Clean up temporary files on exit."""
+    for filepath in _temp_files_to_cleanup:
+        try:
+            if os.path.exists(filepath):
+                os.unlink(filepath)
+                log(f"Cleaned up temp file: {filepath}")
+        except Exception as e:
+            log(f"Could not clean up temp file {filepath}: {e}")
+
+# Register cleanup function
+atexit.register(_cleanup_temp_files)
 
 
 class ScreenshotManager:
@@ -109,15 +127,26 @@ class ScreenshotManager:
 
                 # Compress the image to reduce size
                 compressed_path = compress_image(filepath)
-                image = Image(compressed_path)
+                
+                # Copy compressed image to downloads before creating Image object
+                if save_to_downloads:
+                    downloads_dir = self.get_downloads_dir()
+                    final_path = downloads_dir / Path(compressed_path).name
+                    shutil.copy(compressed_path, final_path)
+                    image = Image(str(final_path))
+                    log(f"Saved compressed screenshot to downloads: {final_path}")
+                else:
+                    # Copy to a more permanent temp location to avoid cleanup issues
+                    import tempfile
+                    persistent_temp = tempfile.NamedTemporaryFile(suffix='.png', delete=False)
+                    persistent_temp.close()
+                    shutil.copy(compressed_path, persistent_temp.name)
+                    image = Image(persistent_temp.name)
+                    # Track for cleanup later
+                    _temp_files_to_cleanup.append(persistent_temp.name)
 
                 if not with_ocr_text_and_coords:
                     return image  # MCP Image object
-
-                # Copy from temp to downloads if requested
-                if save_to_downloads:
-                    log("Copying screenshot from temp to downloads")
-                    shutil.copy(filepath, self.get_downloads_dir())
 
                 # Process OCR
                 ocr_results = self._process_ocr(
